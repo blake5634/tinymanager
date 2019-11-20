@@ -1,11 +1,14 @@
 # TinyManager
 
-A basic management tool/API for [tinyDB](https://tinydb.readthedocs.io/en/latest/) json databases
+A basic management tool/API for [tinyDB](https://tinydb.readthedocs.io/en/latest/) `json` databases
         
 **Note:** it is *assumed* by this SW that you want all documents (records)
 in the db to have 
+
         1) the same set of keys
+
         2) the values for each key are all of the same key-specific type
+        
 These assumptions are not required by tinydb and may or may not be what 
 you want for your application.           
             

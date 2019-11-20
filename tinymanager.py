@@ -158,6 +158,9 @@ TinyManager
     in the db to have 
               1) the same set of keys
               2) the values for each key are all of the same key-specific type
+              3) *** it is assumed that the FIRST record in the db/table is correct.
+                 In other words the first record corresponds to a "schema" for the db.
+                
     These assumptions are not required by tinydb and may or may not be what 
     you want for your application.           
            
