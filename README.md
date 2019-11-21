@@ -1,6 +1,6 @@
 # TinyManager
 
-A basic management tool/API for [tinyDB](https://tinydb.readthedocs.io/en/latest/) json databases
+A basic management tool/API for [tinyDB](https://tinydb.readthedocs.io/en/latest/) `json` databases
         
 **Note:** it is *assumed* by this SW that you want all documents (records)
 in the db to have 
