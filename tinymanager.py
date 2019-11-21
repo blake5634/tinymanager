@@ -4,6 +4,8 @@ import sys
 from tinydb import TinyDB, Query
 import uuid
 import shutil
+import os
+import json
 #from tinydb.operations import delete
 
 
@@ -18,6 +20,7 @@ q = Query()
 
 class tdb_file():
     def __init__(self,fname):
+        self.schema = {'tables':[], 'table_fields':{}} # list of strings / dict of table 2-lists
         self.tablelist = []
         self.name = fname
         self.db = None
@@ -27,10 +30,79 @@ class tdb_file():
             print ('ignored')
         # identify the tables if present
         else: # valid filename
-            self.db = TinyDB(dbfname)       
+            self.db = TinyDB(self.name)       
             self.tablelist = list(self.db.tables()) # don't need _default
             #print ('tdb_files.init(): ' , self.tablelist)
-
+            
+            
+    def display_schema(self):
+        print('\n   Schema Report for',self.name)
+        for t in self.schema['tables']:
+            print ('\n Table: ', t)
+            keydat = self.schema['table_fields'][t]
+            for kd in keydat:
+                print('{:25}  {:15}'.format(kd[0],kd[1]))  
+            
+        
+        
+        
+    def auto_schema(self):  # collect a schema from first document(s) in the db file
+        #
+        #  Note: this is basically a convenience hack -- assuming the first record
+        #     of each table FOLLOWS the schema
+        #
+        
+        # Schema: 
+        # tables: ['table1', 'table2' etc] = self.name.tables
+        # table_fields = {tablename: [['key1',str(type1)], ['key2',str(type2)], ['key3',str(type3)], etc], table2name: [[],[],etc]}
+        if not self.db:
+            print('auto_schema: no database!')
+            quit()
+            
+    
+        schema_fname = self.name+'_SCHEMA_.json'
+        print ('\n--------------------------------------------------------------------------\n')
+        if os.path.isfile(schema_fname):
+            print(' I found a schema description file: ', schema_fname)
+            f = open(schema_fname, 'r')
+            self.schema = json.load(f)
+        else:
+            print (self.name, ' does not seem to have a schema description file')
+            x = input('Do you want to auto-generate schema from first record? (y/N):')
+            if x.lower() == 'y':
+                # get the tables
+                self.schema['tables'] = list(self.db.tables())
+                self.schema['table_fields'] = {}
+                # go through the tables
+                for t in self.schema['tables']:  # includes the _default table
+                    print ('looking at table: ', t) 
+                    self.schema['table_fields'][t] = []
+                    dbt = self.db.table(t)
+                    # get the keys and key types for each table
+                    firsttime = True   
+                    # get "first" record
+                    for r in dbt:
+                        #print ('record:', r)
+                        if firsttime:
+                            for k in r.keys():
+                                self.schema['table_fields'][t].append( [k, str(type(r[k]))] ) #  
+                            #print ('\n\nInital keys for:', t, ', ',self.schema['table_fields'][t])
+                            firsttime = False
+                        else:
+                            break
+                # generate the schema file
+                
+                f = open(schema_fname, 'w')
+                json.dump(self.schema,f) 
+                
+            else:
+                print('Please generate a schema file manually')
+                quit()
+                #print ('File: ',self.name)
+                #print (self.schema)
+    
+        
+        
 class tdb_validator():
     def __init__(self,db):
         self.db = db
@@ -207,6 +279,18 @@ Step 2:
     
 if __name__ == '__main__':
     #
+    #  testing schema hack
+    #
+    tfiles = ['t.json', 'testRobCldb.json','test1.json','test3.json']
+    
+    for f in tfiles:
+        df = tdb_file(f)
+        df.auto_schema()
+        df.display_schema()
+        
+        
+def holding_pen():
+    #
     # deal with multiple tables in the db!!!
     #        
     if len(sys.argv) ==1 or sys.argv[1].replace('-','').lower() =='help':
@@ -228,7 +312,7 @@ if __name__ == '__main__':
             print('got here')
             if len(dbf.tablelist) == 0:
                 print('got here 2')
-                db_or_table_list.append([dbf.name, None, dbf.name])
+                db_or_table_list.append([dbf, None, dbf.name])
             else:
                 for table in dbf.tablelist:
                     db_or_table_list.append([dbf, table, dbf.name])
