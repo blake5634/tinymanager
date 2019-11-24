@@ -1,6 +1,7 @@
 #!/usr/bin/python3
 #from  club_database import *
 from tinydb import TinyDB, Query
+from tinydb.operations import delete
 
 
 #
@@ -76,6 +77,33 @@ print ('Length of test3.json: ', len(db))
 modids = [ids[3], ids[12]]
 print ('modifying ids: ', modids)
 db.update({'key1':5},doc_ids=modids) # key1 is now not uniform
+
+    
+
+####################################################################
+#
+#
+dbfname = 'test4.json'
+#dbfname = 'testdb.json'
+db = TinyDB(dbfname)          
+
+
+for r in db:
+    db.remove(q.key1.exists())  # clear old copy if any
+
+rec = {'key1':'John Smith', 'key2':'127',  'key3':560,  'key4': ['a', 'b', 'c'], 'key5':4.2379}
+rec2 = {'key1':'John Smith',               'key3':560,  'key4': ['a', 'b', 'c'], 'key5':4.2379} # key2 missing
+ids = []
+for i in range(100):
+    ids.append(db.insert(rec))
+    
+print ('Length of test3.json: ', len(db))
+#make non uniform key
+modids = [ids[3], ids[12]]  # 'randomly' pick  3rd, and 12th doc_ids to mess with
+print ('modifying ids: ', modids)
+db.update({'key1':5},doc_ids=modids) # key1 is now not uniform type
+print('deleting key2 from ', ids[14], ids[18])
+db.update(delete('key2'), doc_ids=[ids[14],ids[18]])
 
     
 
