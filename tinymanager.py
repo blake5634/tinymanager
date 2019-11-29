@@ -127,6 +127,7 @@ class tdb_validator():
         for id in self.unifdata['badrecordIDs']: # problem records
             rec2fix = self.db.get(doc_id = id)
             print ('fixing keys: ',id, rec2fix)
+            eks = [] # place to store the extra keys in this id
             if id in self.unifdata['extrakeyIDs']:
                 print('fixing extra keys: ',id)
                 # lets get rid of the extra keys:
@@ -134,16 +135,19 @@ class tdb_validator():
                     print('looking at ',k,' in record ', id,self.schema_keys)
                     if str(k) not in self.schema_keys:
                         print ('found an extra key: ',id, k)
-                        del rec2fix[k] # delete the key
-                        self.db.update(rec2fix,doc_ids=[id])
+                        eks.append(str(k))  # store this key for deletion
                         nextra += 1
             elif id in self.unifdata['missingkeyIDs']:
                 print('fixing missing keys: ',id)
                 for k in self.schema_keys:
                     if str(k) not in rec2fix.keys():
                         print ('found a missing key: ',id, k)
-                        self.db.update({k:''}, doc_ids=[id])  # add the key
+                        rectfix[k] = ''  # add the missing key with null value 
+                                         # note could be wrong type!
                         nmiss += 1
+            for k in eks:  # now remove any extra keys
+                del rec2fix[k]
+            self.db.update(rec2fix,doc_ids=[id])  # update corrected db rec.
     
         print ('done with missing/extra key repair')
         print ('  repaired ',nmiss, ' missing keys')
@@ -223,11 +227,15 @@ class tdb_validator():
                 # Check for invalid type (of each value)
                 #
                 for k in kl: # go through keys in this record
-                    if str(type(r[k])) != self.schema_types[k]:
-                        self.keysAllUniformType = False  # at least one key mixes types
-                        self.keyuniformity[k]   = False    # key k, mixes types
-                        typeproblemIDs.append(r.doc_id)
-                        badrecordIDs.append(r.doc_id)
+                    try:
+                        if str(type(r[k])) != self.schema_types[k]:
+                            self.keysAllUniformType = False  # at least one key mixes types
+                            self.keyuniformity[k]   = False    # key k, mixes types
+                            typeproblemIDs.append(r.doc_id)
+                            badrecordIDs.append(r.doc_id)
+                    except:
+                        pass # (no need to check type of an EXTRA key (not present in schema))
+                    
         for k in self.schema_keys:
             if not self.keyuniformity[k]:
                 self.schema_types[k] = 'multiple types'     
