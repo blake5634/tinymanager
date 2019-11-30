@@ -124,6 +124,7 @@ class tdb_validator():
             quit()
         nmiss = 0
         nextra = 0
+        print(' >> repairing: ', self.unifdata['badrecordIDs'])
         for id in self.unifdata['badrecordIDs']: # problem records
             rec2fix = self.db.get(doc_id = id)
             print ('fixing keys: ',id, rec2fix)
@@ -147,8 +148,13 @@ class tdb_validator():
                         nmiss += 1
             for k in eks:  # now remove any extra keys
                 del rec2fix[k]
-            self.db.update(rec2fix,doc_ids=[id])  # update corrected db rec.
-    
+            self.db.remove(doc_ids=[id])
+            newid = self.db.insert(rec2fix)  # update corrected db rec.
+            print ('newid: ', newid, '  old: ', id)
+            tmp = [newid if x == id else x for x in self.unifdata['badrecordIDs']] # replace id
+            self.unifdata['badrecordIDs']= tmp
+            tmp = [newid if x == id else x for x in self.unifdata['typeproblemIDs']] # replace id
+            self.unifdata['typeproblemIDs']= tmp
         print ('done with missing/extra key repair')
         print ('  repaired ',nmiss, ' missing keys')
         print ('  repaired ',nextra, ' extra keys')
