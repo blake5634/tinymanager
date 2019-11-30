@@ -11,6 +11,7 @@ from tinydb.operations import delete
 
 ####################################################################
 #
+#        Test 1:   a "uniform" db
 #
 dbfname = 'test1.json'
 #dbfname = 'testdb.json'
@@ -33,6 +34,7 @@ for i in range(30):
 
 ####################################################################
 #
+#        Test 2:  every 10th rec has an extra key
 #
 dbfname = 'test2.json'
 #dbfname = 'testdb.json'
@@ -57,6 +59,7 @@ for i in range(30):
 
 ####################################################################
 #
+#        Test 3: two records have wrong types for key1 (str->int)
 #
 dbfname = 'test3.json'
 #dbfname = 'testdb.json'
@@ -82,6 +85,7 @@ db.update({'key1':5},doc_ids=modids) # key1 is now not uniform
 
 ####################################################################
 #
+#        Test 4:  some records have missing keys and others wrong types
 #
 dbfname = 'test4.json'
 #dbfname = 'testdb.json'
