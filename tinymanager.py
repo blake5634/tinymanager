@@ -59,11 +59,11 @@ class tdb_file():
             print('auto_schema: no database!')
             quit()
             
+        print ('\n--------------------------------------------------------------------------\n')
     
         schema_fname = self.name+'_SCHEMA_.json'
-        print ('\n--------------------------------------------------------------------------\n')
         if os.path.isfile(schema_fname):
-            print(' I found a schema description file: ', schema_fname)
+            print('I found a schema description file: ', schema_fname)
             f = open(schema_fname, 'r')
             self.schema = json.load(f)
         else:
@@ -104,22 +104,19 @@ class tdb_file():
         
         
 class tdb_validator():
-    def __init__(self,db):
-        self.db = db
+    def __init__(self,dbf, table): # args:  class tdb_file dbf;  str tablename)
+        self.db = dbf.db.table(table) # table could be '_default'
+        self.tablename = table
+        self.dfile = dbf  #class tdb_file
         self.result = {}
         self.keysAllUniformType = False
         self.keyuniformity = {}
         self.samekeysflag = False
         self.schema_keys = []        # keys from initial record
-        self.schema_types = {}        # types of initial keys
+        self.schema_types = {}        # types of  keys
         self.profdata = {}       # reports from analyses
         self.unifdata = {}                  
-        #self.unifdata['badrecordIDs'] = badrecordIDs
-        #self.unifdata['missingkeyIDs'] = missingkeyIDs
-        #self.unifdata['extrakeyIDs'] = extrakeyIDs
-    
-    #def schema_init():
-        #sc_name = 
+        
     def repair_uniformity(self):
         q = Query()
         if self.unifdata == {} or self.schema_keys == []:
@@ -127,68 +124,152 @@ class tdb_validator():
             quit()
         nmiss = 0
         nextra = 0
+        print(' >> repairing: ', self.unifdata['badrecordIDs'])
         for id in self.unifdata['badrecordIDs']: # problem records
             rec2fix = self.db.get(doc_id = id)
+            print ('fixing keys: ',id, rec2fix)
+            eks = [] # place to store the extra keys in this id
             if id in self.unifdata['extrakeyIDs']:
+                print('fixing extra keys: ',id)
                 # lets get rid of the extra keys:
                 for k in rec2fix.keys():  # go through the keys
-                    if k not in self.schema_keys:
-                        self.db.remove(doc_ids=[id]) # delete the key
+                    print('looking at ',k,' in record ', id,self.schema_keys)
+                    if str(k) not in self.schema_keys:
+                        print ('found an extra key: ',id, k)
+                        eks.append(str(k))  # store this key for deletion
                         nextra += 1
             elif id in self.unifdata['missingkeyIDs']:
+                print('fixing missing keys: ',id)
                 for k in self.schema_keys:
-                    if k not in rec2fix.keys():
-                        self.db.update({k:''}, doc_ids=[id])  # add the key
+                    if str(k) not in rec2fix.keys():
+                        print ('found a missing key: ',id, k)
+                        rec2fix[k] = ''  # add the missing key with null value 
+                                         # note could be wrong type!
                         nmiss += 1
+            for k in eks:  # now remove any extra keys
+                del rec2fix[k]
+            self.db.remove(doc_ids=[id])
+            newid = self.db.insert(rec2fix)  # update corrected db rec.
+            print ('newid: ', newid, '  old: ', id)
+            tmp = [newid if x == id else x for x in self.unifdata['badrecordIDs']] # replace id
+            self.unifdata['badrecordIDs']= tmp
+            tmp = [newid if x == id else x for x in self.unifdata['typeproblemIDs']] # replace id
+            self.unifdata['typeproblemIDs']= tmp
         print ('done with missing/extra key repair')
         print ('  repaired ',nmiss, ' missing keys')
         print ('  repaired ',nextra, ' extra keys')
         
+        desiredtypes = {}
+        for tf in self.dfile.schema['table_fields'][self.tablename]:
+            desiredtypes[tf[0]] = tf[1] # store typestrings by key
+        ## repair types
+        nfixt = 0
+        for id in self.unifdata['typeproblemIDs']: 
+            rec2fix = self.db.get(doc_id = id)
+            print ('fixing type: ',id, rec2fix)
+            for k in rec2fix.keys():
+                desiredtype = str(desiredtypes[k])
+                print ('     key:', k, '   des type: ['+desiredtype+']  actual: ['+str(type(rec2fix[k]))+'] ')
+                if str(type(rec2fix[k])) != desiredtype:
+                    print(' - fixing - ', rec2fix[k])
+                    if desiredtype == "<class 'str'>":
+                        rec2fix[k] = str(rec2fix[k])
+                    elif desiredtype == "<class 'int'>":
+                        rec2fix[k] = int(rec2fix[k])
+                    elif desiredtype == "<class 'float'>":
+                        rec2fix[k] = float(rec2fix[k])
+            print('updating record: ', id)
+            self.db.update(rec2fix,doc_ids=[id])
+            nfixt += 1
+            self.db.update(rec2fix,doc_ids=[id])
+        print ('\ndone with type error repair')
+        print ('   repaired ', nfixt, ' type errors')
+    
     def uniformity(self): #self.cr = record(cldb,clschema)
         badrecordIDs = []  # doc_id's of docs (records) with missing or extra keys
         missingkeyIDs = []
         extrakeyIDs = []
+        typeproblemIDs = []
         self.samekeysflag = True
         self.keysAllUniformType = True
-        firsttime = True
-        self.schema_keys = []        # keys from initial record
-        self.schema_types = {}        # types of initial keys
         self.keyuniformity = {}    # which keys are uniform type throughout db
+        self.schema_keys = []        # list of keys from schema
+        
+        ##  unpack the schema
+        if self.dfile.schema['tables'] == []:
+            print ('you called uniformity without getting schema first')
+            quit()
+        this_tbl = self.tablename
+        keypair_list = self.dfile.schema['table_fields'][this_tbl]
+        for kp in keypair_list:
+            key = kp[0]
+            type_str = kp[1]
+        # TODO:  get these from the db file schema
+        t = self.dfile.schema['table_fields'][self.db.name]
+        self.schema_types = {}        # types of initial keys
+        for f in t:
+            self.schema_types[f[0]] = f[1]  # make into dictionary
+            self.schema_keys.append(f[0])
+            self.keyuniformity[f[0]] = True
+        #
+        #  go through all records
+        # 
         for r in self.db:
-            if firsttime:
-                self.schema_keys = r.keys()
-                for k in self.schema_keys:
-                    self.schema_types[k] = type(r[k])
-                    self.keyuniformity[k] = True
-                #print ('Inital keys:', self.schema_keys)
-                firsttime = False
-            else:
-                if r.keys() != self.schema_keys:   # are the record keys exactly same
+                #
+                #  check for missing/extra keys
+                #
+                kl = sorted(list(r.keys()))    # this records' keys
+                skl = sorted(self.schema_keys) # schema keys
+                if kl != skl:   # are the record keys exactly same?
                     self.samekeysflag = False
                     self.keysAllUniformType = False # all docs do not have same keys
                     #print ('dif:', r.keys())
                     badrecordIDs.append(r.doc_id)
                     if len(r.keys()) < len(self.schema_keys):
-                        missingkeyIDs.append(r.doc_id)  # unless ClubID is missing!!
+                        missingkeyIDs.append(r.doc_id) 
                     else: # extra keys
                         extrakeyIDs.append(r.doc_id)
-                else: # familiar keys
-                    for k in self.schema_keys:
-                        if type(r[k]) != self.schema_types[k]:
+                #
+                # Check for invalid type (of each value)
+                #
+                for k in kl: # go through keys in this record
+                    try:
+                        if str(type(r[k])) != self.schema_types[k]:
                             self.keysAllUniformType = False  # at least one key mixes types
-                            self.keyuniformity[k] = False    # key k, mixes types
-        if self.samekeysflag:
-            for k in self.schema_keys:
-                if not self.keyuniformity[k]:
-                    self.schema_types[k] = 'multiple types'                    
+                            self.keyuniformity[k]   = False    # key k, mixes types
+                            typeproblemIDs.append(r.doc_id)
+                            badrecordIDs.append(r.doc_id)
+                    except:
+                        pass # (no need to check type of an EXTRA key (not present in schema))
+                    
+        for k in self.schema_keys:
+            if not self.keyuniformity[k]:
+                self.schema_types[k] = 'multiple types'     
         self.unifdata['badrecordIDs'] = badrecordIDs
         self.unifdata['missingkeyIDs'] = missingkeyIDs
         self.unifdata['extrakeyIDs'] = extrakeyIDs
+        self.unifdata['typeproblemIDs'] = typeproblemIDs
+        
                             
+    def unif_report(self):
+        prob=False
+        if self.samekeysflag:
+            print('\n      All documents (records) have same keys')
+            prob=True
+        if self.keysAllUniformType:
+            print('      All keys have uniform types')
+            prob=True
+        if prob:
+            #print('      Some keys do not belong to all documents (records)')
+            print('club record IDs with key problems: ',   self.unifdata['badrecordIDs'])
+            print('\nclub record IDs with missing keys: ', self.unifdata['missingkeyIDs'])
+            print('\nclub record IDs with extra keys: ',   self.unifdata['extrakeyIDs'])
+            print('\nclub record IDs with type problems: ',   self.unifdata['typeproblemIDs'])
+            
     def profile(self):
         hugeint = 9999999999999999999999999999
         if not self.samekeysflag:
-            self.error('cant profile unless all docs (records) have same keys')
+            td_error('cant profile unless all docs (records) have same keys')
         nk = len(self.schema_keys)
         # set up profiles of the keys with type int.
         self.profdata = {}
@@ -225,12 +306,12 @@ class tdb_validator():
         
                 
         
-    def error(msg):
-        print('tinyDB validator: '+msg)
-        quit()
+def td_error(msg):
+    print('tinyDB validator: '+msg)
+    quit()
 
 def backup_tiny_json(name):
-    approxUID = str(uuid.uuid1())[0:10]  # truncate to be nice low-risk
+    approxUID = str(uuid.uuid1())[0:10]  # truncate to be nicer but low-risk
     bufilename = name.replace('.','_')+'_BACKUP_'+ approxUID # from db_or_table_list
     print('backing up to: ', bufilename)
     shutil.copy(name, bufilename)
@@ -278,18 +359,18 @@ Step 2:
     
     
 if __name__ == '__main__':
-    #
-    #  testing schema hack
-    #
-    tfiles = ['t.json', 'testRobCldb.json','test1.json','test3.json']
+    ##
+    ##  testing schema hack
+    ##
+    #tfiles = ['t.json', 'testRobCldb.json','test1.json','test3.json']
     
-    for f in tfiles:
-        df = tdb_file(f)
-        df.auto_schema()
-        df.display_schema()
+    #for f in tfiles:
+        #df = tdb_file(f)
+        #df.auto_schema()
+        #df.display_schema()
         
         
-def holding_pen():
+#def holding_pen():
     #
     # deal with multiple tables in the db!!!
     #        
@@ -316,57 +397,57 @@ def holding_pen():
             else:
                 for table in dbf.tablelist:
                     db_or_table_list.append([dbf, table, dbf.name])
-                    
-    print('LIST:', db_or_table_list)
-    
+                        
     for item in db_or_table_list:
-        dbparent = item[0].db # the db itself
-        if item[1] : # if there is a table
-            db = dbparent.table(item[1])
+        dbf = item[0]
+        table = item[1]
+        dname = item[2]
+        dbparent = dbf.db # the db itself
+        if table : # if there is a table
+            db = dbparent.table(table)
         else: 
-            db = dbparent
+            db = dbparent.table('_default')
 
-        print('\n\nTesting Database:', item[2], '   Table: ', item[1])
+        print ('\n--------------------------------------------------------------------------\n')
+        print('\n\n      Testing Database:', dname, '   Table: ', table)  
+        dbf.auto_schema()    # collect schema for this file.
+        #item[0].display_schema()
             
-        v = tdb_validator(db)
-        
+        v = tdb_validator(dbf, table)
+        #dbf.display_schema()
+        #quit()
         v.uniformity()  # check uniformity of keys
-
-        if v.samekeysflag:
-            print('All documents (records) have same keys')
-            if v.keysAllUniformType:
-                print('All keys have uniform types')
+        v.unif_report()
+        
+        
+        print('\n      Key Type analysis\n')
+        print('{:<20} {:<30} {}'.format('Key','Type','Uniform?'))
+        print('--------------------------------------------------------')
+        r = db.all() # first record
+        if len(r) == 0:
+            print ('There are no documents(records)')
         else:
-            print('Some keys do not belong to all documents (records)')
-            print('club record IDs with key problems: ', v.unifdata['badrecordIDs'])
-            print('\nclub record IDs with missing keys: ', v.unifdata['missingkeyIDs'])
-            print('\nclub record IDs with extra keys: ', v.unifdata['extrakeyIDs'])
-        if v.samekeysflag:
-            print('\n\n      Key Type analysis\n')
-            print('{:<20} {:<30} {}'.format('Key','Type','Uniform?'))
-            r = db.all() # first record
-            if len(r) == 0:
-                print ('There are no documents(records)')
-            else:
-                #print (r)
-                r = r[0] # just use first one
-                for k in r.keys():
-                    ktype = v.schema_types[k]
-                    print ('{:<20} {:<30} {}'.format(k,str(ktype),v.keyuniformity[k]))
-                    
-                v.profile()
+            #print (r)
+            r = r[0] # just use first one
+            for k in v.schema_keys:
+                ktype = v.schema_types[k]
+                print ('{:<20} {:<30} {}'.format(k,str(ktype),v.keyuniformity[k]))
                 
-                print ('\nProfile data:',v.profdata['N'],' documents(records)')
-                print ('Mins: ', v.profdata['int_mins'])
-                print ('Max:  ', v.profdata['int_maxs'])
-                print ('Mean: ', v.profdata['int_means'])
+        if v.samekeysflag:
+            v.profile()            
+            print ('\nProfile data:',v.profdata['N'],' documents(records)')
+            print ('Mins: ', v.profdata['int_mins'])
+            print ('Max:  ', v.profdata['int_maxs'])
+            print ('Mean: ', v.profdata['int_means'])
     
+        print ('we found ', len(v.unifdata['badrecordIDs']), ' bad records')
         if len(v.unifdata['badrecordIDs']) > 0:
-            x = input(' Do you want to repair the database '+item[2] + '   Table: '+item[1]+ '(y/N) ?')
+            x = input(' Do you want to repair the database '+dname + '   Table: '+table+ '(y/N) ?')
             if x.lower() == 'y':
                 #
                 #   make backup before repair
                 #
-                backup_tiny_json(item[2])
+                backup_tiny_json(dname)
                 v.repair_uniformity()
+                
 
