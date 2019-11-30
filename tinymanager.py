@@ -143,7 +143,7 @@ class tdb_validator():
                 for k in self.schema_keys:
                     if str(k) not in rec2fix.keys():
                         print ('found a missing key: ',id, k)
-                        rectfix[k] = ''  # add the missing key with null value 
+                        rec2fix[k] = ''  # add the missing key with null value 
                                          # note could be wrong type!
                         nmiss += 1
             for k in eks:  # now remove any extra keys
