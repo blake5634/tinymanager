@@ -111,6 +111,34 @@ db.update(delete('key2'), doc_ids=[ids[14],ids[18]])
 
     
 
+
+####################################################################
+#
+#        Test 5:  some records have both missing keys and extra keys
+#
+dbfname = 'test5.json'
+#dbfname = 'testdb.json'
+db = TinyDB(dbfname)          
+
+
+for r in db:
+    db.remove(q.key1.exists())  # clear old copy if any
+
+rec = {'key1':'John Smith', 'key2':'127',  'key3':560,  'key4': ['a', 'b', 'c'], 'key5':4.2379}
+rec2 = {'key1':'John Smith',               'key3':560,  'key4': ['a', 'b', 'c'], 'key5':4.2379, 'keyxx': 25} #  
+ids = []
+for i in range(100):
+    ids.append(db.insert(rec))
+    
+print ('Length of test3.json: ', len(db))
+#make non uniform key
+modids = [ids[5], ids[27]]  # 'randomly' pick  5th , 27th doc_ids to mess with
+print ('modifying ids: ', modids)
+for id in modids:
+    db.insert(rec2)  # add some wierd records
+ 
+    
+
     
 
     
