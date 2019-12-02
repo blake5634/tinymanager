@@ -36,7 +36,7 @@ class tdb_file():
             
             
     def display_schema(self):
-        print('\n   Schema Report for',self.name)
+        print('\n   Schema Report for',self.name, ', all tables.')
         for t in self.schema['tables']:
             print ('\n Table: ', t)
             keydat = self.schema['table_fields'][t]
@@ -115,24 +115,24 @@ class tdb_validator():
         self.schema_keys = []        # keys from initial record
         self.schema_types = {}        # types of  keys
         self.profdata = {}       # reports from analyses
-        self.unifdata = {}                  
+        self.validation_data = {}                  
         
     def repair_uniformity(self):
         q = Query()
-        if self.unifdata == {} or self.schema_keys == []:
+        if self.validation_data == {} or self.schema_keys == []:
             print("Can't repair database")
             quit()
         nmiss = 0
         nextra = 0
-        print(' >> repairing: ', self.unifdata['badrecordIDs'])
-        for id in self.unifdata['badrecordIDs']: # problem records
+        print(' >> repairing: ', self.validation_data['badrecordIDs'])
+        for id in self.validation_data['badrecordIDs']: # problem records
             rec2fix = self.db.get(doc_id = id)
             print ('fixing keys: ',id, rec2fix)
             eks = [] # place to store the extra keys in this id
             #
             #  fix EXTRA keys
             #
-            if id in self.unifdata['extrakeyIDs']:
+            if id in self.validation_data['extrakeyIDs']:
                 print('fixing extra keys: ',id)
                 # lets get rid of the extra keys:
                 for k in rec2fix.keys():  # go through the keys
@@ -144,7 +144,7 @@ class tdb_validator():
             #
             #  fix MISSING keys
             #
-            if id in self.unifdata['missingkeyIDs']:
+            if id in self.validation_data['missingkeyIDs']:
                 print('fixing missing keys: ',id)
                 for k in self.schema_keys:
                     if str(k) not in rec2fix.keys():
@@ -159,10 +159,10 @@ class tdb_validator():
             self.db.remove(doc_ids=[id])
             newid = self.db.insert(rec2fix)  # update corrected db rec.
             print ('newid: ', newid, '  old: ', id)
-            tmp = [newid if x == id else x for x in self.unifdata['badrecordIDs']] # replace id
-            self.unifdata['badrecordIDs']= tmp
-            tmp = [newid if x == id else x for x in self.unifdata['typeproblemIDs']] # replace id
-            self.unifdata['typeproblemIDs']= tmp
+            tmp = [newid if x == id else x for x in self.validation_data['badrecordIDs']] # replace id
+            self.validation_data['badrecordIDs']= tmp
+            tmp = [newid if x == id else x for x in self.validation_data['typeproblemIDs']] # replace id
+            self.validation_data['typeproblemIDs']= tmp
         print ('done with missing/extra key repair')
         print ('  repaired ',nmiss, ' missing keys')
         print ('  repaired ',nextra, ' extra keys')
@@ -172,7 +172,7 @@ class tdb_validator():
             desiredtypes[tf[0]] = tf[1] # store typestrings by key
         ## repair types
         nfixt = 0
-        for id in self.unifdata['typeproblemIDs']: 
+        for id in self.validation_data['typeproblemIDs']: 
             rec2fix = self.db.get(doc_id = id)
             print ('fixing type: ',id, rec2fix)
             for k in rec2fix.keys():
@@ -256,12 +256,19 @@ class tdb_validator():
         for k in self.schema_keys:
             if not self.keyuniformity[k]:
                 self.schema_types[k] = 'multiple types'     
-        self.unifdata['badrecordIDs']   = list(set(badrecordIDs))  #remove duplicates
-        self.unifdata['missingkeyIDs']  = list(set(missingkeyIDs))
-        self.unifdata['extrakeyIDs']    = list(set(extrakeyIDs))
-        self.unifdata['typeproblemIDs'] = list(set(typeproblemIDs))
+        self.validation_data['badrecordIDs']   = list(set(badrecordIDs))  #remove duplicates
+        self.validation_data['missingkeyIDs']  = list(set(missingkeyIDs))
+        self.validation_data['extrakeyIDs']    = list(set(extrakeyIDs))
+        self.validation_data['typeproblemIDs'] = list(set(typeproblemIDs))
+        if len(self.validation_data['badrecordIDs']) == 0:
+            self.validation_data['valid'] = True
+        else:
+            self.validation_data['valid'] = False
+
+    def valid_TF(self):
+        self.uniformity()
+        return (self.validation_data['valid'])
         
-                            
     def unif_report(self):
         prob=False
         if self.samekeysflag:
@@ -272,10 +279,10 @@ class tdb_validator():
             prob=True
         if prob:
             #print('      Some keys do not belong to all documents (records)')
-            print('club record IDs with key problems: ',   self.unifdata['badrecordIDs'])
-            print('\nclub record IDs with missing keys: ', self.unifdata['missingkeyIDs'])
-            print('\nclub record IDs with extra keys: ',   self.unifdata['extrakeyIDs'])
-            print('\nclub record IDs with type problems: ',   self.unifdata['typeproblemIDs'])
+            print('club record IDs with key problems: ',   self.validation_data['badrecordIDs'])
+            print('\nclub record IDs with missing keys: ', self.validation_data['missingkeyIDs'])
+            print('\nclub record IDs with extra keys: ',   self.validation_data['extrakeyIDs'])
+            print('\nclub record IDs with type problems: ',   self.validation_data['typeproblemIDs'])
             
     def profile(self):
         hugeint = 9999999999999999999999999999
@@ -370,44 +377,81 @@ Step 2:
     
     
 if __name__ == '__main__':
-    ##
-    ##  testing schema hack
-    ##
-    #tfiles = ['t.json', 'testRobCldb.json','test1.json','test3.json']
-    
-    #for f in tfiles:
-        #df = tdb_file(f)
-        #df.auto_schema()
-        #df.display_schema()
-        
-        
-#def holding_pen():
     #
-    # deal with multiple tables in the db!!!
-    #        
-    if len(sys.argv) ==1 or sys.argv[1].replace('-','').lower() =='help':
-        explainer()
-        quit()
-    
-    dbfile_list = []
+    #  Testing pre-made testN.json databasess
+    #     for each databas, it should fail
+    #     the validator, then be fixable, then
+    #     pass the validator.
+    #
+    #
+     
+  
+    dbfn_list = []
     db_or_table_list = []
     
     dbfnamelist = sys.argv[1:]   # list of json files.
     
     #expand all dbs into tables (if they have them)
-    for dbfname in dbfnamelist:
-        dbfile_list.append(tdb_file(dbfname)) 
+   
+    dbfn_list = ['test1.json', 'test2.json', 'test3.json', 'test4.json', 'test5.json', ]
         
-    for dbf in dbfile_list:
+        
+    for fn in dbfn_list:
+        dbf = tdb_file(fn)
+        print ('Running test: '+dbf.name)
+        result = 'Pass'        
+        #following logic unpacks tinydb's that have non-default tables
         print ('looking at: ', dbf.name)
         if dbf.db is not None:
-            print('got here')
             if len(dbf.tablelist) == 0:
-                print('got here 2')
                 db_or_table_list.append([dbf, None, dbf.name])
             else:
                 for table in dbf.tablelist:
                     db_or_table_list.append([dbf, table, dbf.name])
+
+        print('list: ', db_or_table_list)
+        print('\n\n\n')
+        report = []
+        report.append('\n\n  Testing report: ')
+        # now go through all tables
+        for item in db_or_table_list:
+            dbf = item[0]
+            table = item[1]
+            dname = item[2]
+            dbf.auto_schema()  # get schema
+            dbparent = dbf.db # the db itself
+            if table : # if there is a table
+                db = dbparent.table(table)
+            else: 
+                db = dbparent.table('_default')
+                
+            v = tdb_validator(dbf,table)
+            if v.valid_TF() == True:
+                result = 'Fail - invalid db tested good:'
+                continue
+            v.repair_uniformity()
+            if v.valid_TF() == False:
+                result = 'Fail - repair failed.'
+            report.append('      result: '+result+'    '+dname+'   '+table)
+
+    print(report)
+       
+          
+        
+def holding_pen():
+    #
+    # deal with multiple tables in the db!!!
+    #        
+
+    print ('looking at: ', dbf.name)
+    if dbf.db is not None:
+        print('got here')
+        if len(dbf.tablelist) == 0:
+            print('got here 2')
+            db_or_table_list.append([dbf, None, dbf.name])
+        else:
+            for table in dbf.tablelist:
+                db_or_table_list.append([dbf, table, dbf.name])
                         
     for item in db_or_table_list:
         dbf = item[0]
@@ -451,8 +495,8 @@ if __name__ == '__main__':
             print ('Max:  ', v.profdata['int_maxs'])
             print ('Mean: ', v.profdata['int_means'])
     
-        print ('we found ', len(v.unifdata['badrecordIDs']), ' bad records')
-        if len(v.unifdata['badrecordIDs']) > 0:
+        print ('we found ', len(v.validation_data['badrecordIDs']), ' bad records')
+        if len(v.validation_data['badrecordIDs']) > 0:
             x = input(' Do you want to repair the database '+dname + '   Table: '+table+ '(y/N) ?')
             if x.lower() == 'y':
                 #
