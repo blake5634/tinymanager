@@ -129,16 +129,22 @@ class tdb_validator():
             rec2fix = self.db.get(doc_id = id)
             print ('fixing keys: ',id, rec2fix)
             eks = [] # place to store the extra keys in this id
+            #
+            #  fix EXTRA keys
+            #
             if id in self.unifdata['extrakeyIDs']:
                 print('fixing extra keys: ',id)
                 # lets get rid of the extra keys:
                 for k in rec2fix.keys():  # go through the keys
-                    print('looking at ',k,' in record ', id,self.schema_keys)
+                    #print('looking at ',k,' in record ', id,self.schema_keys)
                     if str(k) not in self.schema_keys:
                         print ('found an extra key: ',id, k)
                         eks.append(str(k))  # store this key for deletion
                         nextra += 1
-            elif id in self.unifdata['missingkeyIDs']:
+            #
+            #  fix MISSING keys
+            #
+            if id in self.unifdata['missingkeyIDs']:
                 print('fixing missing keys: ',id)
                 for k in self.schema_keys:
                     if str(k) not in rec2fix.keys():
@@ -147,7 +153,9 @@ class tdb_validator():
                                          # note could be wrong type!
                         nmiss += 1
             for k in eks:  # now remove any extra keys
+                print (' -.-.-. removing ', k, ' from ', id)
                 del rec2fix[k]
+                print ('       ', rec2fix)
             self.db.remove(doc_ids=[id])
             newid = self.db.insert(rec2fix)  # update corrected db rec.
             print ('newid: ', newid, '  old: ', id)
@@ -204,7 +212,6 @@ class tdb_validator():
         for kp in keypair_list:
             key = kp[0]
             type_str = kp[1]
-        # TODO:  get these from the db file schema
         t = self.dfile.schema['table_fields'][self.db.name]
         self.schema_types = {}        # types of initial keys
         for f in t:
@@ -225,10 +232,14 @@ class tdb_validator():
                     self.keysAllUniformType = False # all docs do not have same keys
                     #print ('dif:', r.keys())
                     badrecordIDs.append(r.doc_id)
-                    if len(r.keys()) < len(self.schema_keys):
-                        missingkeyIDs.append(r.doc_id) 
-                    else: # extra keys
-                        extrakeyIDs.append(r.doc_id)
+                    for sk in skl:
+                        if sk not in r.keys():
+                            missingkeyIDs.append(r.doc_id) 
+                            break
+                    for rk in kl:
+                        if rk not in self.schema_keys:
+                            extrakeyIDs.append(r.doc_id)
+                            break
                 #
                 # Check for invalid type (of each value)
                 #
@@ -245,10 +256,10 @@ class tdb_validator():
         for k in self.schema_keys:
             if not self.keyuniformity[k]:
                 self.schema_types[k] = 'multiple types'     
-        self.unifdata['badrecordIDs'] = badrecordIDs
-        self.unifdata['missingkeyIDs'] = missingkeyIDs
-        self.unifdata['extrakeyIDs'] = extrakeyIDs
-        self.unifdata['typeproblemIDs'] = typeproblemIDs
+        self.unifdata['badrecordIDs']   = list(set(badrecordIDs))  #remove duplicates
+        self.unifdata['missingkeyIDs']  = list(set(missingkeyIDs))
+        self.unifdata['extrakeyIDs']    = list(set(extrakeyIDs))
+        self.unifdata['typeproblemIDs'] = list(set(typeproblemIDs))
         
                             
     def unif_report(self):
@@ -411,8 +422,8 @@ if __name__ == '__main__':
         print ('\n--------------------------------------------------------------------------\n')
         print('\n\n      Testing Database:', dname, '   Table: ', table)  
         dbf.auto_schema()    # collect schema for this file.
-        #item[0].display_schema()
-            
+        
+        
         v = tdb_validator(dbf, table)
         #dbf.display_schema()
         #quit()
