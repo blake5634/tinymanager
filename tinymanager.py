@@ -377,82 +377,36 @@ Step 2:
     
     
 if __name__ == '__main__':
+    
+    # This is basically a *demo* ap for the tinymanager API. See also test_tiny_mgr.py
     #
-    #  Testing pre-made testN.json databasess
-    #     for each databas, it should fail
-    #     the validator, then be fixable, then
-    #     pass the validator.
+         
     #
-    #  
-    os.system('python3 maketestdb.py')  # initialize the dbs
-    dbfn_list = []
+    # deal with multiple tables in the db!!!
+    #        
+    if len(sys.argv) ==1 or sys.argv[1].replace('-','').lower() =='help':
+        explainer()
+        quit()
+    
+    dbfile_list = []
     db_or_table_list = []
     
+    dbfnamelist = sys.argv[1:]   # list of json files.
+    
     #expand all dbs into tables (if they have them)
-
-    dbfn_list = ['test1.json', 'test2.json', 'test3.json', 'test4.json', 'test5.json', ]
+    for dbfname in dbfnamelist:
+        dbfile_list.append(tdb_file(dbfname)) 
         
-        
-    for fn in dbfn_list:
-        dbf = tdb_file(fn)
-        print ('Running test: '+dbf.name)
-        #following logic unpacks tinydb's that have non-default tables
+    for dbf in dbfile_list:
+        print ('looking at: ', dbf.name)
         if dbf.db is not None:
-            dbf.auto_schema()  # get schema just once
+            print('got here')
             if len(dbf.tablelist) == 0:
+                print('got here 2')
                 db_or_table_list.append([dbf, None, dbf.name])
             else:
                 for table in dbf.tablelist:
                     db_or_table_list.append([dbf, table, dbf.name])
-        else:
-            print('couldnt open '+fn)
-    print('list: ', db_or_table_list)
-    report = []
-    report.append('\n\n  Testing report: \n')
-    # now go through all tables
-    for item in db_or_table_list:
-        result = 'Pass'        
-        dbf = item[0]
-        table = item[1]
-        dname = item[2]
-        print ('testing: ',dname, table)
-        dbparent = dbf.db # the db itself
-        if table : # if there is a table
-            db = dbparent.table(table)
-        else: 
-            db = dbparent.table('_default')
-            
-        v = tdb_validator(dbf,table)
-        if v.valid_TF() == True:
-            if dbf.name != 'test1.json':  # test1.json is made to be valid!
-                result = 'Fail - invalid db tested good:'
-            else:
-                result = 'Pass'  
-        else:
-            v.repair_uniformity()
-        if v.valid_TF() == False:
-            result = 'Fail - repair failed.'
-        report.append('    '+dname+'   '+table+'      result: '+result+'\n')
-
-    for line in report:
-        print(line)
-       
-          
-        
-def holding_pen():
-    #
-    # deal with multiple tables in the db!!!
-    #        
-
-    print ('looking at: ', dbf.name)
-    if dbf.db is not None:
-        print('got here')
-        if len(dbf.tablelist) == 0:
-            print('got here 2')
-            db_or_table_list.append([dbf, None, dbf.name])
-        else:
-            for table in dbf.tablelist:
-                db_or_table_list.append([dbf, table, dbf.name])
                         
     for item in db_or_table_list:
         dbf = item[0]
@@ -506,4 +460,5 @@ def holding_pen():
                 backup_tiny_json(dname)
                 v.repair_uniformity()
                 
+
 
