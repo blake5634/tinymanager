@@ -127,7 +127,7 @@ class tdb_validator():
         print(' >> repairing: ', self.validation_data['badrecordIDs'])
         for id in self.validation_data['badrecordIDs']: # problem records
             rec2fix = self.db.get(doc_id = id)
-            print ('fixing keys: ',id, rec2fix)
+            print ('fixing keys: ',id) #, rec2fix)
             eks = [] # place to store the extra keys in this id
             #
             #  fix EXTRA keys
@@ -148,14 +148,12 @@ class tdb_validator():
                 print('fixing missing keys: ',id)
                 for k in self.schema_keys:
                     if str(k) not in rec2fix.keys():
-                        print ('found a missing key: ',id, k)
+                        #print ('found a missing key: ',id, k)
                         rec2fix[k] = ''  # add the missing key with null value 
                                          # note could be wrong type!
                         nmiss += 1
             for k in eks:  # now remove any extra keys
-                print (' -.-.-. removing ', k, ' from ', id)
                 del rec2fix[k]
-                print ('       ', rec2fix)
             self.db.remove(doc_ids=[id])
             newid = self.db.insert(rec2fix)  # update corrected db rec.
             print ('newid: ', newid, '  old: ', id)
@@ -174,12 +172,12 @@ class tdb_validator():
         nfixt = 0
         for id in self.validation_data['typeproblemIDs']: 
             rec2fix = self.db.get(doc_id = id)
-            print ('fixing type: ',id, rec2fix)
+            print ('fixing type: ',id)   #, rec2fix)
             for k in rec2fix.keys():
                 desiredtype = str(desiredtypes[k])
-                print ('     key:', k, '   des type: ['+desiredtype+']  actual: ['+str(type(rec2fix[k]))+'] ')
+                #print ('     key:', k, '   des type: ['+desiredtype+']  actual: ['+str(type(rec2fix[k]))+'] ')
                 if str(type(rec2fix[k])) != desiredtype:
-                    print(' - fixing - ', rec2fix[k])
+                    #print(' - fixing - ', rec2fix[k])
                     if desiredtype == "<class 'str'>":
                         rec2fix[k] = str(rec2fix[k])
                     elif desiredtype == "<class 'int'>":
@@ -400,9 +398,7 @@ if __name__ == '__main__':
     for dbf in dbfile_list:
         print ('looking at: ', dbf.name)
         if dbf.db is not None:
-            print('got here')
             if len(dbf.tablelist) == 0:
-                print('got here 2')
                 db_or_table_list.append([dbf, None, dbf.name])
             else:
                 for table in dbf.tablelist:
