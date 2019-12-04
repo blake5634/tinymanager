@@ -43,7 +43,16 @@ class tdb_file():
             for kd in keydat:
                 print('{:25}  {:15}'.format(kd[0],kd[1]))  
             
-        
+    def read_schema(self):
+        schema_fname = self.name+'_SCHEMA_.json'
+        if os.path.isfile(schema_fname):
+            print('I found a schema description file: ', schema_fname)
+            f = open(schema_fname, 'r')
+            self.schema = json.load(f)
+            return True
+        else:
+            print('No existing schema file for ', self.name)
+            return False
         
     # generate schema based on existing tdb_file.
     def auto_schema(self):  # collect a schema from first document(s) in the db file
@@ -397,13 +406,22 @@ if __name__ == '__main__':
         
     for dbf in dbfile_list:
         print ('looking at: ', dbf.name)
+        sc_present = dbf.read_schema()
+        if not sc_present:
+            dbf.auto_schema()    # collect schema for this file.
+        dbf.display_schema()
+        resp = input('Does this schema look good? y/N:')
+        if resp.lower() != 'y':
+            dbf.db = None
         if dbf.db is not None:
             if len(dbf.tablelist) == 0:
                 db_or_table_list.append([dbf, None, dbf.name])
             else:
                 for table in dbf.tablelist:
                     db_or_table_list.append([dbf, table, dbf.name])
-                        
+        else: 
+            print('There seems to be no database! somethings wrong, goodbye')
+            quit()
     for item in db_or_table_list:
         dbf = item[0]
         table = item[1]
@@ -416,8 +434,6 @@ if __name__ == '__main__':
 
         print ('\n--------------------------------------------------------------------------\n')
         print('\n\n      Testing Database:', dname, '   Table: ', table)  
-        dbf.auto_schema()    # collect schema for this file.
-        
         
         v = tdb_validator(dbf, table)
         #dbf.display_schema()
