@@ -141,4 +141,34 @@ for id in modids:
 
     
 
+####################################################################
+#
+#        Test 6: Test db with multiple tables 
+#          (table 2 has flaws)
+#
+dbfname = 'test6.json'
+#dbfname = 'testdb.json'
+db = TinyDB(dbfname)
+q = Query()
+
+tables = ['test_table1','test_table2','test_table3']
+
+for t in tables:
+    dbt = db.table(t)
+    dbt.purge()  #clear it out
+     
+    rec1 = {'key1': 5, 'key2':4, 'key3':3, 'key4':2,'key5':1}
+    rec2 = {'keyZ': 5, 'key5':'777', 'key3':3, 'key4':2,'key2':1}
+
+    r = rec1
+    for i in range(30):
+        if t == 'test_table2':
+            if i%10==0:
+                r = rec2
+            else:
+                r = rec1
+        dbt.insert(r)
+    
+
+
     

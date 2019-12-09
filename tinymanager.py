@@ -30,18 +30,22 @@ class tdb_file():
             print ('ignored')
         # identify the tables if present
         else: # valid filename
-            self.db = TinyDB(self.name)       
+            #print('opening ', self.name)
+            self.db = TinyDB(self.name)   
+            #print(' database: ', self.db)
             self.tablelist = list(self.db.tables()) # don't need _default
+            #print('    tables: ', self.tablelist )
             #print ('tdb_files.init(): ' , self.tablelist)
             
             
     def display_schema(self):
         print('\n   Schema Report for',self.name, ', all tables.')
         for t in self.schema['tables']:
-            print ('\n Table: ', t)
             keydat = self.schema['table_fields'][t]
+            nrec = len(self.db.table(t))            
+            print ('\nTable: {:15} nrecords: {:4}'.format( t, nrec))
             for kd in keydat:
-                print('{:25}  {:15}'.format(kd[0],kd[1]))  
+                print('{:20} {:15}'.format(kd[0],kd[1]))  
             
     def read_schema(self):
         schema_fname = self.name+'_SCHEMA_.json'
@@ -64,7 +68,7 @@ class tdb_file():
         # Schema: 
         # tables: ['table1', 'table2' etc] = self.name.tables
         # table_fields = {tablename: [['key1',str(type1)], ['key2',str(type2)], ['key3',str(type3)], etc], table2name: [[],[],etc]}
-        if not self.db:
+        if  self.db==None:
             print('auto_schema: no database!')
             quit()
             
@@ -84,7 +88,7 @@ class tdb_file():
                 self.schema['table_fields'] = {}
                 # go through the tables
                 for t in self.schema['tables']:  # includes the _default table
-                    print ('looking at table: ', t) 
+                    #print ('looking at table: ', t) 
                     self.schema['table_fields'][t] = []
                     dbt = self.db.table(t)
                     # get the keys and key types for each table
@@ -190,7 +194,10 @@ class tdb_validator():
                     if desiredtype == "<class 'str'>":
                         rec2fix[k] = str(rec2fix[k])
                     elif desiredtype == "<class 'int'>":
-                        rec2fix[k] = int(rec2fix[k])
+                        try:
+                            rec2fix[k] = int(rec2fix[k])
+                        except:
+                            rec2fix[k] = 0
                     elif desiredtype == "<class 'float'>":
                         rec2fix[k] = float(rec2fix[k])
             print('updating record: ', id)
