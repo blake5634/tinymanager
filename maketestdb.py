@@ -15,7 +15,7 @@ from tinydb.operations import delete
 #
 dbfname = 'test1.json'
 #dbfname = 'testdb.json'
-db = TinyDB(dbfname)          
+db = TinyDB(dbfname)
 q = Query()
 
 for r in db:
@@ -155,7 +155,7 @@ tables = ['test_table1','test_table2','test_table3']
 
 for t in tables:
     dbt = db.table(t)
-    dbt.purge()  #clear it out
+    dbt.truncate()  #clear it out
      
     rec1 = {'key1': 5, 'key2':4, 'key3':3, 'key4':2,'key5':1}
     rec2 = {'keyZ': 5, 'key5':'777', 'key3':3, 'key4':2,'key2':1}
@@ -168,7 +168,3 @@ for t in tables:
             else:
                 r = rec1
         dbt.insert(r)
-    
-
-
-    
